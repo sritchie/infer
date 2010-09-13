@@ -171,3 +171,6 @@
 
 (deftest frobenius
   (is (= 10 (frobenius-norm (matrix (I 100 100)))))) 
+
+(deftest l2-norm-test
+	(is (= 1 (l2-norm (column-matrix [1 0])))))
