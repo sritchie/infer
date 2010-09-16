@@ -5,11 +5,9 @@ Infer is a library for machine learning and statistical inference, designed to b
 
 Infer is written in [Clojure](http://clojure.org/) and leverages many JVM packages.
 
-You can read about some of the performance testing that went into the foundation here:
+Get involved in the community on the mail list: http://groups.google.com/group/infer-clj
 
-+ [Fast Statistics on the JVM](http://measuringmeasures.com/blog/2010/4/17/numerics-benchmarking-fast-statistics-on-the-jvm.html)
-+ [Linear Algebra Benchmarks](http://measuringmeasures.com/blog/2010/3/28/matrix-benchmarks-fast-linear-algebra-on-the-jvm.html)
-+ [Fast Clojure Vectors and Multidimensional Arrays](http://measuringmeasures.com/blog/2010/3/27/fast-clojure-vectors-and-multidimensional-arrays.html)
+Check out the roadmap at the project's pivotal tracker: http://www.pivotaltracker.com/projects/41557
 
 Infer does not aim to replace R, or be an R for the JVM, or be a NumPy written in Clojure.
 
@@ -43,5 +41,11 @@ Infer is broad and covers, or intends to cover, most of what you'll find in stat
 - generalized classification & regression (stuff that currently lives in classification)
 
 - *features*:  easy to deal with feature representations as a matrix, a Clojure vector of vectors, or nested maps, and transforming between the options.  easy dealing with continuous or discrete, or discretizing continuous variables (currently in *classification*).  merging equivalence classes.
+
+You can read about some of the performance testing that went into the foundation here:
+
++ [Fast Statistics on the JVM](http://measuringmeasures.com/blog/2010/4/17/numerics-benchmarking-fast-statistics-on-the-jvm.html)
++ [Linear Algebra Benchmarks](http://measuringmeasures.com/blog/2010/3/28/matrix-benchmarks-fast-linear-algebra-on-the-jvm.html)
++ [Fast Clojure Vectors and Multidimensional Arrays](http://measuringmeasures.com/blog/2010/3/27/fast-clojure-vectors-and-multidimensional-arrays.html)
 
 - Copyright (c) Bradford Cross and Hamilton Ulmer released under the MIT License (http://www.opensource.org/licenses/mit-license.php).
