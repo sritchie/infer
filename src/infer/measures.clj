@@ -355,6 +355,11 @@ the Euclidean distance or Euclidean metric is the ordinary distance between two 
   [x y]
   (apply + (map * x y)))
 
+(defn l2-norm
+	"Calculates the L2 norm.  Expects an n x 1 matrix (column vector)."
+	[x]
+	(sqrt (get-at (times (trans x) x) 0 0)))
+
 (defn chebyshev-distance
 "In the limiting case of Lp reaching infinity we obtain the Chebyshev distance."
 [a b]
