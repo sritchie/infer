@@ -16,6 +16,8 @@
   (:import org.ujmp.core.calculation.Calculation$Ret)
   (:import org.ujmp.core.doublematrix.calculation.general.decomposition.Chol))
 
+(set! *warn-on-reflection* true)
+
 (defn leave-out [js ys]
   (difference (into #{} ys) (into #{} js)))
 
@@ -49,7 +51,7 @@
 		       (union acc (into #{} (keys row))))
 		     #{}
 		     xs)
-	m (mk-matrix (long-array [n-rows (+ (apply max cols) 1)]))
+	#^DoubleMatrix2D m (mk-matrix (long-array [n-rows (+ (apply max cols) 1)]))
 	row-indices (range 0 (count xs))]
     (dorun
      (map (fn [row r]
@@ -61,13 +63,13 @@
     m))
 
 (defn sparse-matrix [xs]
- (sparse-matrix* xs #(MatrixFactory/sparse %)))
+ (sparse-matrix* xs (fn [#^"[J" x] (MatrixFactory/sparse x))))
 
 (defn sparse-colt-matrix [xs]
- (sparse-matrix* xs #(ColtSparseDoubleMatrix2D. %)))
+ (sparse-matrix* xs (fn [#^"[J" x] (ColtSparseDoubleMatrix2D. x))))
 
 (defn sparse-pcolt-matrix [xs]
- (sparse-matrix* xs #(ParallelColtSparseDoubleMatrix2D. %)))
+ (sparse-matrix* xs (fn [#^"[J" x] (ParallelColtSparseDoubleMatrix2D. x))))
 
 ;; (defn sparse-mahout-matrix [xs]
 ;;   (let [n-rows (count xs)
@@ -86,7 +88,7 @@
 ;; 	  row-indices))
 ;;     m)))
 
-(defn from-sparse-matrix [m]
+(defn from-sparse-matrix [#^DoubleMatrix2D m]
   (map (fn [coord]
 	 (conj (into [] (map int coord)) (.getDouble m coord)))
        (.availableCoordinates m)))
@@ -99,11 +101,11 @@
 (defn column-matrix [ys]
   (matrix (map vector ys)))
 
-(defn from-matrix [A]
+(defn from-matrix [#^DoubleMatrix2D A]
   (map #(into [] %)
        (.toDoubleArray A)))
 
-(defn from-column-matrix [X]
+(defn from-column-matrix [#^DoubleMatrix2D X]
   (flatten (map #(into [] %)
 		(.toDoubleArray X))))
 
@@ -259,23 +261,29 @@
 (def orig-matrix Calculation$Ret/ORIG)
 
 (defn delete-rows
-[#^DenseDoubleMatrix2D A rows]
-  (.deleteRows A new-matrix (long-array rows)))
+  [#^DoubleMatrix2D A rows]
+  (let [#^Calculation$Ret m new-matrix]
+    (.deleteRows A m (long-array rows))))
 
 (defn delete-columns 
-[#^DenseDoubleMatrix2D A columns]
-  (.deleteColumns A new-matrix (long-array columns)))
+  [#^DoubleMatrix2D A columns]
+  (let [#^Calculation$Ret m new-matrix]
+    (.deleteColumns A m (long-array columns))))
 
 (defn select-columns
-  [#^DenseDoubleMatrix2D A columns]
-  (.selectColumns A new-matrix (long-array columns)))
+  [#^DoubleMatrix2D A columns]
+  (let [#^Calculation$Ret m new-matrix]
+    (.selectColumns A m (long-array columns))))
 
 (defn select-rows
-  [#^DenseDoubleMatrix2D A rows]
-  (.selectRows A new-matrix (long-array rows)))
+  [#^DoubleMatrix2D A rows]
+  (let [#^Calculation$Ret m new-matrix]
+    (.selectRows A m (long-array rows))))
 
 (defn column-concat 
-[& Ms] (MatrixFactory/horCat (into-array #^Matrix Ms)))
+  [& Ms] (MatrixFactory/horCat #^"[Lorg.ujmp.core.doublematrix.DoubleMatrix2D;"
+			       (into-array #^Matrix Ms)))
 
 (defn row-concat 
-[& Ms] (MatrixFactory/vertCat (into-array #^Matrix Ms)))
+  [& Ms] (MatrixFactory/vertCat #^"[Lorg.ujmp.core.doublematrix.DoubleMatrix2D;"
+				(into-array #^Matrix Ms)))
