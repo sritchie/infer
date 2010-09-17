@@ -16,8 +16,6 @@
   (:import org.ujmp.core.calculation.Calculation$Ret)
   (:import org.ujmp.core.doublematrix.calculation.general.decomposition.Chol))
 
-(set! *warn-on-reflection* true)
-
 (defn leave-out [js ys]
   (difference (into #{} ys) (into #{} js)))
 
