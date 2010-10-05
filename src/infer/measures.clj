@@ -355,11 +355,6 @@ the Euclidean distance or Euclidean metric is the ordinary distance between two 
   [x y]
   (apply + (map * x y)))
 
-(defn l2-norm
-	"Calculates the L2 norm.  Expects an n x 1 matrix (column vector)."
-	[x]
-	(sqrt (get-at (times (trans x) x) 0 0)))
-
 (defn chebyshev-distance
 "In the limiting case of Lp reaching infinity we obtain the Chebyshev distance."
 [a b]
@@ -692,3 +687,35 @@ The Levenshtein distance has several simple upper and lower bounds that are usef
             (map #(* % %) 
                (flatten (from-matrix A)))))]
     Af))
+
+(defn lp-norm
+	""
+	[p x]
+	(let [vec (from-column-matrix x)]
+	(expt (reduce + (map #(expt (abs %) p) vec )) (/ 1 p))))
+
+(defn l0-norm
+	[x]
+	(let [vec (from-column-matrix x)]
+		(count (filter #(not (zero? %)) vec))))
+
+(defn l1-norm
+	"Calculates the L1-norm.  Expects an n x 1 (column) matrix."
+	[x] 
+	(lp-norm 1 x))
+
+(defn *l2-norm
+	"Calculates the L2-norm.  Expects an n x 1 (column) matrix."
+	[x]
+	(sqrt (get-at (times (trans x) x) 0 0)))
+
+(defn l2-norm
+	"Calculates the L2-norm.  Expects an n x 1 (column) matrix."
+	[x]
+	(lp-norm 2 x))
+
+(defn linf-norm
+	"Calculates the ∞-norm.  Expects an n x 1 (column) matrix."
+	[x]
+	(let [vec (from-column-matrix x)]
+		(apply max (map abs vec))))

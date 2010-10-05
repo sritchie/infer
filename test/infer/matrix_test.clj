@@ -109,3 +109,10 @@
 		       (column-matrix [1 2])
 		       (column-matrix [2 3])
 		       (column-matrix [3 4]))))))
+
+(deftest row-and-column-seqable
+	(let [A (matrix [[1 1 1] [2 2 2] [3 3 3]])]
+		(is (= (seq [(column-matrix [1 2 3]) (column-matrix [1 2 3]) (column-matrix [1 2 3])])
+			(each-column A)))
+		(is (= (seq [(matrix [[1 1 1]]) (matrix [[2 2 2]]) (matrix [[3 3 3]])])
+			(each-row A)))))

@@ -172,5 +172,15 @@
 (deftest frobenius
   (is (= 10 (frobenius-norm (matrix (I 100 100)))))) 
 
-(deftest l2-norm-test
-	(is (= 1 (l2-norm (column-matrix [1 0])))))
+
+(deftest norm-tests
+	(let [v1 (column-matrix [1 0])
+		    v2 (column-matrix [0 10 -10])]
+	(is (= 1 (l0-norm v1)))
+	(is (= 2 (l0-norm v2)))
+	(is (= 1 (l1-norm v1)))
+	(is (= 20 (l1-norm v2)))
+	(is (= 1 (l2-norm v1)))
+	(is (= 14.142135623730951 (l2-norm v2)))
+	(is (= 1 (linf-norm v1)))
+	(is (= 10 (linf-norm v2)))))

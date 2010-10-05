@@ -285,3 +285,13 @@
 (defn row-concat 
   [& Ms] (MatrixFactory/vertCat #^"[Lorg.ujmp.core.doublematrix.DoubleMatrix2D;"
 				(into-array #^Matrix Ms)))
+
+(defn each-row 
+	"Returns a lazy sequence of row vectors, corresponding to the rows of matrix A."
+	[#^DenseDoubleMatrix2D A]
+	(map #(select-rows A [%]) (range 0 (row-count A))))
+
+(defn each-column
+	"Returns a lazy sequence of column vectors, corresponding to the columns of matrix A."
+	[#^DenseDoubleMatrix2D A]
+	(map #(select-columns A [%]) (range 0 (column-count A))))
