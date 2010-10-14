@@ -28,6 +28,8 @@
 (defn tan [x] (Math/tan x)) 
 (defn atan [x] (Math/atan x)) 
 
+
+
 ;;TODO: this doesn't have to be macros if the m-lift is not a macro
 (defn lift-apply [f args]
   ((m-lift 1 (partial apply f)) args))
@@ -119,6 +121,22 @@
 (defn safe-max [x]
   (let [res (filter (complement nil?) (seqify x))]
     (apply max (if (empty? res) 0 res))))
+
+(def *log-thresh* 30.0)
+
+(defn log-add 
+  "returns log(sum(xs)) from seq of log-x, used for many probabilistic computations"
+  [log-xs]
+  (if (empty? log-xs) Double/NEGATIVE_INFINITY
+    (let [max (apply max log-xs) thresh (- max *log-thresh*)]  
+      (if (= max Double/NEGATIVE_INFINITY) Double/NEGATIVE_INFINITY
+        (let [sum-neg-diffs 
+                (reduce + (for [log-x log-xs :when (> log-x thresh)] 
+                            (Math/exp (- (double log-x) (double max)))))]
+          (if (> sum-neg-diffs 0.0) 
+              (+ max (Math/log (double sum-neg-diffs)))
+              max))))))
+
 
 (defn safe-max-date [x]
   (let [res (filter (complement nil?) (seqify x))]

@@ -354,6 +354,19 @@ the Euclidean distance or Euclidean metric is the ordinary distance between two 
 (defn dot-product
   [x y]
   (apply + (map * x y)))
+  
+(defn sparse-dot-product
+  "Dot product between two vectors represented by maps."
+  [x y]
+  (if (< (count x) (count y))
+    (reduce
+      (fn [sum elem]
+        (let [k (first elem) v (second elem)]
+          (+ sum (* v (get y k 0.0)))))
+      0.0
+      x)
+    (sparse-dot-product y x)))
+  
 
 (defn chebyshev-distance
 "In the limiting case of Lp reaching infinity we obtain the Chebyshev distance."

@@ -34,6 +34,20 @@
   [f x0 step-dir]
   (comp f (make-affine-fn x0 step-dir)))                          
 
+(defn remember-last 
+  "remember last input and output for function f. Assumes
+  f only takes one argument useful for caching recent optimization
+  fn queries"
+  [f]
+  (let [last-arg (atom nil) last-val (atom nil)]
+    (fn [x]
+      (if (= @last-arg x)
+        @last-val
+        (let [val (f x)]
+          (swap! last-arg (constantly x))
+          (swap! last-val (constantly val))
+          val)))))
+
 (defn backtracking-line-search 
   "search for step-size in step-dir to satisfy Wolfe Conditions:
      f(x0 + step-size*step-dir) <= f(x0) + suff-descrease * step-size * grad-f(x_0)' delta
@@ -142,8 +156,8 @@
    scale of problems. Definitely true for conditional likelihood objectives. "
   [f x0 qn-approx &
    {:as opts
-    :keys [history-size, max-iters, init-step-size-multiplier, step-size-multiplier]
-    :or {history-size 9, max-iters 50, init-step-size-multiplier 0.5, step-size-multiplier 0.1}}]
+    :keys [history-size, max-iters, init-step-size-multiplier, step-size-multiplier, print-progress]
+    :or {history-size 9, max-iters 50, init-step-size-multiplier 0.5, step-size-multiplier 0.1}}]  
   (loop [iter 0 x x0 qn-approx qn-approx]
     (let [[val grad] (f x)          
           new-x (quasi-newton-iter f x qn-approx
@@ -152,6 +166,7 @@
                     opts))
           [new-val new-grad] (f new-x)
           converged? (within *eps* val new-val)]
+      (when print-progress (printf "At start of iter %d, value is %.5f<br>\n" iter val))    
       (if (or converged? (= iter max-iters))
         x        
         (recur (inc iter) new-x (update-approx qn-approx new-x x new-grad grad))))))
@@ -165,4 +180,4 @@
     {:as opts
      :keys [max-history-size]  
      :or {max-history-size 9}}]
-  (apply quasi-newton-optimize f x0 (new-lbfgs-approx max-history-size) (flatten opts)))        
+  (apply quasi-newton-optimize f x0 (new-lbfgs-approx max-history-size) (-> opts seq flatten)))        
