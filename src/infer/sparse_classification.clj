@@ -19,7 +19,10 @@
     
     Currently implemented:
     - logistic regression (maximum entropy classification)
-    - one-vs-all ranking 
+    
+    To serialize a classifier, use serialize-obj to get a data structure
+    that can be serialized and load-classifier to return
+    a ISparseClassifier protocol
             
     See test for example usage."
    :author "Aria Haghighi <me@aria42.com>"}
@@ -27,7 +30,28 @@
         [infer.measures :only [dot-product, sparse-dot-product]]
         [infer.optimize :only [remember-last, lbfgs-optimize]]        
         [clojure.contrib.map-utils :only [deep-merge-with]]))
-            
+
+;; ---------------------------------------------
+;; Core abstraction
+;; ---------------------------------------------
+
+(defprotocol ISparseClassifier
+ (labels [model] 
+   "returns set of possible labels for task")
+ (predict-label [model datum]
+   "predict highest scoring label")
+ (label-posteriors [model datum] 
+   "return map of label -> posterior for datum, 
+    which is a map from active feature to value")
+  (serialize-obj [_]
+    "A data structure that can be serialized and read"))
+    
+(declare read-classifier)    
+
+;; ---------------------------------------------
+;; Data indexing
+;; ---------------------------------------------
+                                      
 (defn- index-data  
   "takes seq of [label datum] pairs and returns 
    sets of all labels and predicates (aka features)" 
@@ -59,6 +83,10 @@
     (for [label labels :let [label-weights (weight-map label)]]
       (map label-weights preds))))
 
+;; -----------------------------
+;; Linear classifier
+;; -----------------------------
+
 (defn- make-score-fn 
   "returns fn: label -> unnormalized log-probability of label"
   [weights-map]
@@ -79,7 +107,21 @@
             log-z (log-add (vals scores))]
         [log-z
          (map-map #(Math/exp (- % log-z)) scores)]))))
-         
+  
+(defrecord SparseLinearClassifier [weights-map]
+ ISparseClassifier
+ (labels [this] (keys weights-map))
+ (predict-label [this datum]
+   (apply max-key (make-score-fn datum) (labels this)))
+ (label-posteriors [this datum]
+   ((comp second (make-posterior-fn weights-map)) datum))
+ (serialize-obj [this]
+   {:data weights-map :type :linear}))  
+   
+;; ---------------------------------------------
+;; Logistic Regression
+;; ---------------------------------------------
+           
 (defn- log-reg-update [labels post-fn gold-label datum]
   (let [post-res (post-fn datum)
         log-z (first post-res)
@@ -144,6 +186,16 @@
                       l2-grad (map #(/ % sigma-squared) weights)]
                   [(+ log-like l2-penalty) (map + grad l2-grad)]))                    
         weights (apply lbfgs-optimize (remember-last obj-fn) init-weights (-> opts seq flatten))
-        weight-map (encode-weights-to-map weights labels preds)
-        post-fn (comp second (make-posterior-fn weight-map))]
-    post-fn))    
+        weight-map (encode-weights-to-map weights labels preds)]
+    (SparseLinearClassifier. weight-map)))    
+ 
+;; ---------------------------------------------
+;; Serialization
+;; ---------------------------------------------
+     
+(defn load-classifier 
+  "loads classifier from a clj data object that
+  came from serialize-obj."
+  [obj]
+  (case (:type obj)
+    :linear (SparseLinearClassifier. (:data obj))))
