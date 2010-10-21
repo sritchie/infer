@@ -5,6 +5,8 @@
    for many batch trained ML algorithms. 
          
    NOTE: This ns assumes you're trying to always minimize, rather than maximize a function. 
+   In general the functions we optimize take a double seq x and return [value grad]
+   pair, where val = f(x) and grad = df/dx(x) 
    
    Different from infer.learning, which mixes optimization with actual objectives, which is approriate
    for the kind of problems there. This ns is for arbitrary function optimization. 
@@ -88,22 +90,46 @@
   QuasiNewtonApproximaiton
   ; See http://en.wikipedia.org/wiki/L-BFGS  
   (inv-hessian-times [this z]
-    (let [alphas (map (fn [x-delta grad-delta] 
-                        (let [curvature (dot-product x-delta grad-delta)]
-                          (when (< curvature 0)
-                            (throw (RuntimeException. 
-                              (str "Non-positive curvature: " x-delta " " grad-delta))))
-                          (* (/ (dot-product x-delta z) curvature))))
-                       x-deltas grad-deltas)
-          left (reduce (fn [res [alpha grad-delta]]
-                          (map #(- %1 (* alpha %2)) res grad-delta))
-                       z (map vector alphas grad-deltas))]
-      (reduce (fn [res [alpha x-delta grad-delta]]
-                (let [rho (/ 1.0 (dot-product x-delta grad-delta))
-                      b (* rho (dot-product grad-delta res))]
-                  ((make-affine-fn res x-delta) (- alpha b))))
-              left
-              (map vector alphas x-deltas grad-deltas))))
+    (let [alphas 
+            (map 
+              (fn [x-delta grad-delta] 
+                (let [curvature (dot-product x-delta grad-delta)]
+                  (when (< curvature 0)
+                    (throw (RuntimeException. 
+                      (str "Non-positive curvature: " x-delta " " grad-delta))))
+                  (* (/ (dot-product x-delta z) curvature))))
+               x-deltas grad-deltas)
+          left 
+            (loop [res z alphas alphas grad-deltas grad-deltas]
+              (if (or (empty? alphas) (empty? grad-deltas))
+                res
+                (let [alpha (first alphas) grad-delta (first grad-deltas)]
+                  (recur (map #(- %1 (* alpha %2)) res grad-delta)
+                         (rest alphas)
+                         (rest grad-deltas)))))]
+      (loop [res left alphas alphas x-deltas x-deltas grad-deltas grad-deltas]
+        (if (some empty? [alphas x-deltas grad-deltas])
+          res
+          (let [alpha (first alphas)
+                x-delta (first x-deltas)
+                grad-delta (first grad-deltas)
+                rho (/ 1.0 (dot-product x-delta grad-delta))
+                b (* rho (dot-product grad-delta res))]
+            (recur ((make-affine-fn res x-delta) (- alpha b))
+                   (rest alphas)
+                   (rest x-deltas)
+                   (rest grad-deltas)))))))
+
+; (reduce (fn [res [alpha grad-delta]]
+;                 (map #(- %1 (* alpha %2)) res grad-delta))
+;              z (map vector alphas grad-deltas))]
+; (reduce (fn [res [alpha x-delta grad-delta]]
+;           (let [rho (/ 1.0 (dot-product x-delta grad-delta))
+;                 b (* rho (dot-product grad-delta res))]
+;             ((make-affine-fn res x-delta) (- alpha b))))
+;         left
+;         (map vector alphas x-deltas grad-deltas))))
+
                         
   (update-approx [this x-new x-old grad-new grad-old]
     (let [x-delta (map - x-new x-old)
