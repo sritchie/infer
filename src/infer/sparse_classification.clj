@@ -56,12 +56,12 @@
   "takes seq of [label datum] pairs and returns 
    sets of all labels and predicates (aka features)" 
   [labeled-data]
-  (reduce
-    (fn [[preds labels] [label datum]]
-      [(reduce conj preds (keys datum))
-       (conj labels label)])         
-    [#{} #{}]
-    labeled-data))
+  (let [labels (into #{} (map first labeled-data))
+        preds (loop [labeled-data labeled-data preds (transient #{})]
+                (if (empty? labeled-data) (persistent! preds)
+                    (recur (rest labeled-data) 
+                           (reduce conj! preds (-> labeled-data first second keys)))))]
+    [preds labels]))
                    
 
 (defn- encode-weights-to-map 
@@ -143,16 +143,27 @@
 (defn- make-log-reg-obj-fn 
   [labels post-fn]
   (fn [labeled-data]
+    (loop [labeled-data labeled-data sum 0.0 grad {}]
+      (if (empty? labeled-data) 
+          [sum grad]
+          (let [label (-> labeled-data first first)
+                datum (-> labeled-data first second)
+                [log-like local-grad] (log-reg-update labels post-fn label datum)]
+            (recur (rest labeled-data)
+                   (+ sum log-like)
+                   (deep-merge-with + grad local-grad)))))))
+                   
+(defn- log-reg-parallel-compute
+  [labels post-fn labeled-data]
+  (let [obj-fn (make-log-reg-obj-fn labels post-fn)]
     (->> labeled-data
-         (map (fn [labeled-datum] 
-                (log-reg-update labels post-fn 
-                                (first labeled-datum) 
-                                (second labeled-datum))))
+         (partition-all 200)         
+         (pmap obj-fn)
          (reduce
-           (fn [res elem]
-             [(+ (first res) (first elem))
-              (deep-merge-with + (second res) (second elem))])
-           [0.0 {}]))))
+           (fn [[sum-log-like sum-grad] [log-like grad]]
+            [(+ sum-log-like log-like)
+             (deep-merge-with + sum-grad grad)])
+            [0.0 {}]))))
   
 (defn learn-logistic-regression
   "Returns fn: datum => posterior, where the posterior is a map
@@ -178,9 +189,10 @@
         init-weights (double-array (* (count preds) (count labels)))
         obj-fn (fn [weights]
                 (let [weight-map (encode-weights-to-map weights labels preds)
-                      post-fn (make-posterior-fn weight-map)
-                      inner-obj-fn (make-log-reg-obj-fn labels post-fn)
-                      [log-like grad-map] (inner-obj-fn (labeled-data-fn))
+                      [log-like grad-map] 
+                        (log-reg-parallel-compute labels 
+                                                  (make-posterior-fn weight-map) 
+                                                  (labeled-data-fn))
                       grad (decode-map-to-weights grad-map labels preds)
                       l2-penalty (/ (dot-product weights weights) (* 2 sigma-squared))
                       l2-grad (map #(/ % sigma-squared) weights)]

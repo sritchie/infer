@@ -166,7 +166,7 @@
                     opts))
           [new-val new-grad] (f new-x)
           converged? (within *eps* val new-val)]
-      (when print-progress (printf "At start of iter %d, value is %.5f<br>\n" iter val))    
+      (when print-progress (println (format "At start of iter %d, value is %.5f\n" iter val)))    
       (if (or converged? (= iter max-iters))
         x        
         (recur (inc iter) new-x (update-approx qn-approx new-x x new-grad grad))))))
