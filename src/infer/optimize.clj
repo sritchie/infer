@@ -1,6 +1,6 @@
 (ns infer.optimize
-  {:doc "Standard functions for numerical optimziation. Only very marginally tuned
-   for performance. Lots of optional configurability. Defaults are optimized for
+  ^{:doc "Standard functions for numerical optimziation. Only very marginally tuned
+   for performance. Lots of optional configurability. Defaults are optimized for 
    either gradient descent or quasi-Newton methods, which is what you'll end up doing
    for many batch trained ML algorithms. 
          

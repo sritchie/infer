@@ -358,7 +358,7 @@ the Euclidean distance or Euclidean metric is the ordinary distance between two 
 (defn sparse-dot-product
   "Dot product between two vectors represented by maps."
   [x y]
-  (if (< (count x) (count y))
+  (if (<= (count x) (count y))
     (reduce
       (fn [sum elem]
         (let [k (first elem) v (second elem)]
