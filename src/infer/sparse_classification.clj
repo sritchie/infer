@@ -317,5 +317,4 @@
   (case (:type obj)
     :linear (SparseLinearClassifier. (:data obj))
     :mira (let [{:keys [weights-map, losses]} (:data obj)]
-            (MiraOnlineClassifier. weights-map
-                (fn [gold guess] (get losses [gold guess] 0.0))))))
+            (MiraOnlineClassifier. weights-map losses))))            
