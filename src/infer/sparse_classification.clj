@@ -19,6 +19,7 @@
     
     Currently implemented:
     - logistic regression (maximum entropy classification)
+    - online learning (MIRA)
     
     To serialize a classifier, use serialize-obj to get a data structure
     that can be serialized and load-classifier to return
@@ -28,11 +29,11 @@
    :author "Aria Haghighi <me@aria42.com>"}
   (:use [infer.core :only [map-map, log-add]]
         [infer.measures :only [dot-product, sparse-dot-product]]
-        [infer.optimize :only [remember-last, lbfgs-optimize]]        
+        [infer.optimize :only [remember-last,  lbfgs-optimize]]        
         [clojure.contrib.map-utils :only [deep-merge-with]]))
 
 ;; ---------------------------------------------
-;; Core abstraction
+;; Core abstractions
 ;; ---------------------------------------------
 
 (defprotocol ISparseClassifier
@@ -40,11 +41,19 @@
    "returns set of possible labels for task")
  (predict-label [model datum]
    "predict highest scoring label")
- (label-posteriors [model datum] 
-   "return map of label -> posterior for datum, 
-    which is a map from active feature to value")
   (serialize-obj [_]
     "A data structure that can be serialized and read"))
+
+
+(defprotocol ISparseProbabilisticClassifier
+  (label-posteriors [model datum] 
+    "return map of label -> posterior for datum, 
+     which is a map from active feature to value"))
+    
+(defprotocol ISparseOnlineClassifier
+  (update-model [model label datum] 
+    "Online classifier can be updated with
+     single example without training"))    
     
 (declare read-classifier)    
 
@@ -88,7 +97,7 @@
 ;; -----------------------------
 
 (defn- make-score-fn 
-  "returns fn: label -> unnormalized log-probability of label"
+  "returns map label -> unnormalized log-probability of label"
   [weights-map]
   (fn [datum]
     (map-map
@@ -112,11 +121,17 @@
  ISparseClassifier
  (labels [this] (keys weights-map))
  (predict-label [this datum]
-   (apply max-key (make-score-fn datum) (labels this)))
- (label-posteriors [this datum]
-   ((comp second (make-posterior-fn weights-map)) datum))
+   (apply max-key (make-score-fn weights-map) (labels this)))
  (serialize-obj [this]
-   {:data weights-map :type :linear}))  
+   {:data weights-map :type :linear})
+   
+ ISparseProbabilisticClassifier
+ ; If you have a lienar classifier you use
+ ; soft-max for probabilities. This is correct
+ ; for logistic regression but is well-defined
+ ; for any linear classifier
+ (label-posteriors [this datum]
+   ((comp second (make-posterior-fn weights-map)) datum)))  
    
 ;; ---------------------------------------------
 ;; Logistic Regression
@@ -173,19 +188,22 @@
    Each datum is simply a map from predicates (features) to value 
    (for binary features, this is just 1). All absent features assumed to be 0. 
    
-   labeled-data-fn: callback to return 
-   seq of [label datum] which is labeled data. 
-   Seq of labels implicitly determined from labeled data. 
+   labeled-data-source: either a seq of [label datum] representing labeled
+   data or a no-arg callback to return seq of [label datum].
+   Set of possible labels implicitly determined from labeled data. 
       
    Main option is sigma-squared (L2 regularization parameter). All options
    passed on to optimization (lbfgs-optimize in infer.optimize)
       
    TODO: Support L1 regularization and feature pruning"
-  [labeled-data-fn &
+  [labeled-data-source &
    {:as opts
     :keys [sigma-squared, max-iters]
     :or {sigma-squared 1.0 max-iters 100}}]
-  (let [[preds labels] (index-data (labeled-data-fn))
+  (let [labeled-data-fn (if (or (seq? labeled-data-source) (vector? labeled-data-source))
+                          (constantly labeled-data-source)
+                          labeled-data-source)                          
+        [preds labels] (index-data (labeled-data-fn))
         init-weights (double-array (* (count preds) (count labels)))
         obj-fn (fn [weights]
                 (let [weight-map (encode-weights-to-map weights labels preds)
@@ -200,7 +218,83 @@
         weights (apply lbfgs-optimize (remember-last obj-fn) init-weights (-> opts seq flatten))
         weight-map (encode-weights-to-map weights labels preds)]
     (SparseLinearClassifier. weight-map)))    
- 
+    
+;; ---------------------------------------------
+;; MIRA Online Learning
+;; See http://aria42.com/blog/?p=216
+;; ---------------------------------------------
+
+(defn- add-scaled 
+ "x <- x + scale * y
+  Bottleneck: written to be efficient"
+ [x scale y]
+ (persistent!
+  (reduce
+    (fn [res elem]
+      (let [k (first elem) v (second elem)]
+         (assoc! res k (+ (get x k 0.0) (* scale v)))))
+     (transient x)
+     y)))
+
+(defn- mira-weight-update
+  "returns new weights assuming error predict-label instead of gold-label.
+   delta-vec is the direction and alpha the scaling constant"
+  [weight-map delta-vec gold-label predict-label alpha]  
+  (update-in weight-map [gold-label] add-scaled alpha delta-vec))
+       
+(defn- update-mira
+ "update mira for an example returning [new-mira error?]"
+ [mira gold-label datum]
+ (let [predict-label (predict-label mira datum)]
+      (if (= predict-label gold-label)
+           ; If we get it right do nothing
+           [mira false]
+           ; otherwise, update weights
+           (let [score-fn ((make-score-fn (:weights-map mira)) datum)
+                 loss (-> mira :losses  (get [gold-label predict-label] 0.0))
+                 gap (- (get score-fn gold-label 0.0) (get score-fn predict-label 0.0))
+                 alpha  (/ (- loss  gap) (* 2 (sparse-dot-product datum datum)))
+                 new-mira (-> mira 
+                           ; Update Current Weights
+                           (update-in [:weights-map]
+                             mira-weight-update datum gold-label
+                                   predict-label alpha))]
+             [new-mira true]))))
+
+(defrecord MiraOnlineClassifier [weights-map losses]
+  
+  ISparseClassifier
+  (labels [this] (into #{} (keys weights-map)))
+  (predict-label [this datum]
+    (let [label-scores ((make-score-fn weights-map) datum)]
+      (apply max-key label-scores  (labels this))))
+  (serialize-obj [this]
+     {:data (into {} this)
+      :type :mira})
+    
+  ISparseOnlineClassifier
+  (update-model [this label datum]
+    (first (update-mira this label datum))))
+        
+
+(defn new-mira
+  "returns MIRA online classifier. you manually
+   call update-model (see ISparseOnlineClassifier)
+   to train it as data comes in.
+   
+   losses: seq of 
+   
+   
+   Unfortunately this isn't Averaged MIRA which
+   can't be updated efficiently in true online
+   fashion for large feature sets."
+   [losses]
+   (let [label-pairs (keys losses)  
+         labels (into #{} (concat (map first label-pairs) (map second label-pairs)))
+         init-weights (reduce (fn [res label] (assoc res label {})) {} labels)]
+     (MiraOnlineClassifier. init-weights losses)))
+
+       
 ;; ---------------------------------------------
 ;; Serialization
 ;; ---------------------------------------------
@@ -210,4 +304,7 @@
   came from serialize-obj."
   [obj]
   (case (:type obj)
-    :linear (SparseLinearClassifier. (:data obj))))
+    :linear (SparseLinearClassifier. (:data obj))
+    :mira (let [{:keys [weights-map, losses]} (:data obj)]
+            (MiraOnlineClassifier. weights-map
+                (fn [gold guess] (get losses [gold guess] 0.0))))))
