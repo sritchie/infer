@@ -280,11 +280,22 @@
 (defn new-mira
   "returns MIRA online classifier. you manually
    call update-model (see ISparseOnlineClassifier)
-   to train it as data comes in.
+   to train it as data comes in. You can simulate
+   batch learning by just calling update-model
+   on all your data. 
    
-   losses: seq of 
-   
-   
+   losses: map of [true-label guess-label] to loss
+   for that prediction; a missing entry will be assumed
+   to have 0 loss (which should only be when (= true-label guess-label))
+   By default for a set labels you should do:
+   (reduce
+     (fn [res [true-label guess-label]]
+       (if (= true-label guess-label)
+          res
+          (assoc res [true-label guess-label] 1.0)))
+      {}
+      label) 
+      
    Unfortunately this isn't Averaged MIRA which
    can't be updated efficiently in true online
    fashion for large feature sets."
