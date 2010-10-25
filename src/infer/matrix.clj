@@ -295,3 +295,41 @@
 	"Returns a lazy sequence of column vectors, corresponding to the columns of matrix A."
 	[#^DenseDoubleMatrix2D A]
 	(map #(select-columns A [%]) (range 0 (column-count A))))
+
+(defn convolve 
+  ^{:doc "Perform matrix convulotion on Dense double Matrix M
+   against kernel matrix K. Essentially, for each element (i,j)
+   of M, weigh neighboring elements of (i,j) according
+   to K centered on (i,j) and return new matrix 
+   where (i,j) is the average of surrounding points
+   weighed by K. 
+   
+   The boundary counditions just truncate the matrix K
+   so it's as though K is padded with 0's if applied to a 
+   point on the edge.
+   
+   Returns new matrix, no mutation of input matrices."
+   :author "Aria Haghighi <me@aria42.com>"}
+  [#^DenseDoubleMatrix2D M #^DenseDoubleMatrix2D K]
+  (let [num-rows (int (row-count M))
+        num-cols (int (column-count M))
+        kernel-row-rad (-> K row-count (/ 2) int)
+        kernel-column-rad (-> K column-count (/ 2) int)        
+        compute-kernel 
+          (fn [x y]
+            (let [x0 (Math/max (int (- x kernel-row-rad)) (int 0))
+                  x1 (Math/min (int (inc (+ x kernel-row-rad))) (int num-rows))
+                  y0 (Math/max (int (- y kernel-column-rad)) (int 0))
+                  y1 (Math/min (int (inc (+ y kernel-column-rad))) (int num-cols))
+                  kx0 (if (< x kernel-row-rad) x 0)
+                  kx1 (+ kx0 (- x1 x0))
+                  ky0 (if (< y kernel-column-rad) y 0)
+                  ky1 (+ ky0 (- y1 y0))
+                  M-sub (.subMatrix M link-to-matrix x0 y0 (dec x1) (dec y1))
+                  K-sub (.subMatrix K link-to-matrix kx0 ky0 (dec kx1) (dec ky1))]
+              (/ (.getValueSum (.times M-sub K-sub))
+                 (.getValueSum K-sub))))
+         R (fill 0.0 num-rows num-cols)]
+    (doseq [x (range 0 num-rows) y (range 0 num-cols)]
+      (set-at R (compute-kernel x y) x y))
+    R))	
