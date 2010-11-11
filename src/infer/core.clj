@@ -200,6 +200,9 @@
 (defn map-map [f x]
   (into {} (for [[k v] x] [k (f v)])))
 
+(defn pmap-map [f x]
+  (into {} (pmap (fn [[k v]] [k (f v)]) x)))
+
 (defn map-from-keys [a f]
   (into {} (for [k a] [k (f k)])))
 
