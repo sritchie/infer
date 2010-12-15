@@ -115,7 +115,7 @@
   ISparseClassifier
   (labels [this] (keys weights-map))
   (predict-label [this datum]
-                 (apply max-key (make-score-fn weights-map) (labels this)))
+                 (apply max-key ((make-score-fn weights-map) datum) (labels this)))
   (serialize-obj [this]
                  {:data weights-map :type :linear})
 
